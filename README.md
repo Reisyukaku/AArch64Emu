@@ -15,7 +15,7 @@ An emulator built from Unicorn-engine and designed for debugging switch (ARM64) 
 
 **Requirements:** 
 
- - [Unicorn python bindings](https://github.com/unicorn-engine/unicorn/releases/)
+ - [Unicorn-engine](https://github.com/unicorn-engine/unicorn) (commit 821245e766b7600ba666b9b5c4247bdcc5165d72)
  - [Python 3](https://www.python.org/downloads/)
 
 **Credits:**
