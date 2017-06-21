@@ -10,7 +10,7 @@ An emulator built from Unicorn-engine and designed for debugging switch (ARM64) 
 
 **Usage:**
 
-    emu.py <startAddress> [opt:steps]
+    main.py <address> [opt:steps]
  It looks for code.bin in the same directory.
 
 **Requirements:** 

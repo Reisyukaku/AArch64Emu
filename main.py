@@ -1,31 +1,15 @@
-#   emu.py
-#       by Reisyukaku
+#   main.py
 #
-#   Emulates AArch64 code read from code.bin and displays debugging data.
-#   Usage: emu.py <entryAddr> <steps>
+#   AArch64Emu
+#   Copyright (C) 2017  Reisyukaku
 
 from __future__ import print_function
 from unicorn import *
 from unicorn.arm64_const import *
 import sys
 
-# Read from memory
-def readMem(emu, addr, size):
-    try:
-        tmp = emu.mem_read(addr, size)
-        print("[0x%X bytes @ 0x%x]:\n" %(size, addr), end="")
-        str = ''
-        for i in tmp:
-            str += ''.join('{:02X}'.format(i))
-            str += ' '
-            size -= 1
-            if size % 8 == 0:
-                str += ' '
-            if size % 16 == 0:
-                print(str + ' ')
-                str = ''
-    except UcError as e:
-            print("ERROR: %s" % e)
+from utils import *
+from hooks import *
 
 # Set breakpoint in emu
 def breakpoint(uc, addr):
@@ -33,59 +17,10 @@ def breakpoint(uc, addr):
     if pc == addr:
         stopEmu(uc, 'Breakpoint!')
 
-# Svc Handler
-def svcHandler(uc):
-    stopEmu(uc, 'SVC call!')
-
-# Memory exception hook    
-def hook_mem_invalid(uc, access, address, size, value, user_data):
-    if access == UC_MEM_WRITE:
-        print("Memory fault on WRITE at 0x%x, data size = %u, data value = 0x%x" % (address, size, value))
-    else:
-        print("Memory fault on READ at 0x%x, data size = %u" % (address, size))
-
-# Instruction exception hook
-def hook_intr(uc, intno, user_data):
-    if intno == 2:
-        svcHandler(uc)
-    else:
-        stopEmu(uc, 'Uknown exception!')
-
-# Callback for tracing instructions
-def hook_code(uc, address, size, user_data):
-    pc = uc.reg_read(UC_ARM64_REG_PC)
-    addr = user_data
-    if pc == addr + 0x3ACE5C:
-        print("SendSyncRequest")
-    print("PC = 0x%x" %pc)
-
 # Halt emulation
 def stopEmu(uc, reason):
     print(reason)
     uc.emu_stop()
-    
-# Dump registers and memory
-def dumpData(uc, heap, tls):
-    if uc is not None:
-        print("Registers:\n-----------------")
-        cnt = 0
-        for x in range(UC_ARM64_REG_X0, UC_ARM64_REG_X0 + 32):
-            r = uc.reg_read(x)
-            print("  X%d = 0x%x" %(cnt, r))
-            cnt += 1
-        print("  SP = 0x%x" %uc.reg_read(UC_ARM64_REG_SP))
-        print("  PC = 0x%x\n" %uc.reg_read(UC_ARM64_REG_PC))
-        
-        print("Memory:\n-----------------")    
-        print("Stack Pointer:")
-        readMem(uc, uc.reg_read(UC_ARM64_REG_SP), 0x80)
-        print("Frame Pointer:")
-        readMem(uc, uc.reg_read(UC_ARM64_REG_FP), 0x80)
-        print("Heap Memory:")
-        readMem(uc, heap, 0x100);
-        
-        print("IPC Command Buffer:")
-        readMem(uc, tls, 0x100)
 
 # Setup and emulate AArch64 code (designed around switch)
 def emulate(code, textAddr, heapAddr, tls, codeMem, stackMem, heapMem, entry, steps):    
