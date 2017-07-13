@@ -12,9 +12,18 @@ from svc import *
 # Memory exception hook    
 def hook_mem_invalid(uc, access, address, size, value, user_data):
     if access == UC_MEM_WRITE:
-        print("Memory fault on WRITE at 0x%x, data size = %u, data value = 0x%x" % (address, size, value))
+        print("Memory fault on WRITE @ 0x%08X, size = %u, value = 0x%08X" % (address, size, value))
     else:
-        print("Memory fault on READ at 0x%x, data size = %u" % (address, size))
+        print("Memory fault on READ @ 0x%08X, size = %u" % (address, size))
+        
+# Memory read/write hook    
+def hook_mem_rw(uc, access, address, size, value, user_data):
+    if access == UC_MEM_WRITE:
+        access = "WRITE"
+    else:
+        access = "READ"
+
+    print("Memory %s @ 0x%X,\t[0x%08X]" % (access, address, value))
 
 # Instruction exception hook
 def hook_intr(uc, intno, user_data):
@@ -27,6 +36,4 @@ def hook_intr(uc, intno, user_data):
 def hook_code(uc, address, size, user_data):
     pc = uc.reg_read(UC_ARM64_REG_PC)
     addr = user_data
-    if pc == addr + 0x3ACE5C:
-        print("SendSyncRequest")
-    print("PC = 0x%x" %pc)
+    print("PC = 0x%X [0x%X]" %(pc, pc - addr))

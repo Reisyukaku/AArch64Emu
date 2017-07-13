@@ -10,6 +10,8 @@ import sys
 
 from utils import *
 from hooks import *
+from profile import *
+import struct
 
 # Set breakpoint in emu
 def breakpoint(uc, addr):
@@ -23,36 +25,41 @@ def stopEmu(uc, reason):
     uc.emu_stop()
 
 # Setup and emulate AArch64 code (designed around switch)
-def emulate(code, textAddr, heapAddr, tls, codeMem, stackMem, heapMem, entry, steps):    
+def emulate(prof, entry, steps):    
     try:
+        # Read binary
+        with open(prof.bin, "rb") as binary_file:
+            code = binary_file.read()
+        
         # Initialize emulator in AArch64
         mu = Uc(UC_ARCH_ARM64, UC_MODE_ARM)
         
         # Initialize memory
-        mu.mem_map(textAddr, codeMem + stackMem)
-        mu.mem_map(heapAddr, heapMem)
-        mu.mem_write(textAddr, code)
-        sp = textAddr + codeMem + 0x500
+        mu.mem_map(prof.textStart, prof.codeMem + prof.stackMem)
+        mu.mem_map(prof.heapStart, prof.heapMem)
+        mu.mem_write(prof.textStart, code)
+        sp = prof.textStart + prof.codeMem + 0x500
         fp = sp + 0x10
         
         # Initialize registers
         mu.reg_write(UC_ARM64_REG_SP, sp)
         mu.reg_write(UC_ARM64_REG_FP, fp)
-        mu.reg_write(UC_ARM64_REG_TPIDRRO_EL0, tls)
+        mu.reg_write(UC_ARM64_REG_TPIDRRO_EL0, prof.tls)
         #ARGS GO HERE .. for now
 
         # Add hooks
-        mu.hook_add(UC_HOOK_CODE, hook_code, user_data=textAddr)
+        mu.hook_add(UC_HOOK_CODE, hook_code, user_data=prof.textStart)
         mu.hook_add(UC_HOOK_INTR, hook_intr)
         mu.hook_add(UC_HOOK_MEM_INVALID, hook_mem_invalid)
+        mu.hook_add(UC_HOOK_MEM_READ | UC_HOOK_MEM_WRITE, hook_mem_rw)
 
         # Emulate code in infinite time & X steps
-        mu.emu_start(entry, textAddr + len(code), count = steps)
+        mu.emu_start(entry, prof.textStart + len(code), count = steps)
         
         print("Emulation done!\n")
         return mu
     except UcError as e:
-        dumpData(mu, heapAddr, tls)
+        dumpData(mu, prof.heapStart, prof.tls)
         print("ERROR: %s" % e)
         print("SP = %x\nPC = %x" %(mu.reg_read(UC_ARM64_REG_SP), mu.reg_read(UC_ARM64_REG_PC)))
         
@@ -60,13 +67,9 @@ def emulate(code, textAddr, heapAddr, tls, codeMem, stackMem, heapMem, entry, st
 
 def main(argv):
     # Base vars
-    textStart = 0x252CA06000
-    heapStart = 0x294c000000
-    stackMem = 0x1000
-    heapMem = 0x2000
-    codeMem = 0x95A000
-    tls = heapStart   # my custom IPC TLS hook
-    
+    nsProf = Profile("ns_code.bin", 0x5EE3000000, 0x5EE4000000, 0x1000, 0x2000, 0x690000)
+    wkcProf = Profile("wkc_code.bin", 0x252CA06000, 0x294c000000, 0x1000, 0x2000, 0x95A000)
+
     # Parse args
     if argv[0].startswith("0x"):
         entry = int(argv[0][2:],16)
@@ -79,16 +82,12 @@ def main(argv):
             steps = int(argv[1][2:],16)
         else:
             steps = int(argv[1])
-    
-    # Code to be emulated (tested with webkit MOD)
-    with open("code.bin", "rb") as binary_file:
-        code = binary_file.read()
 
     # Emulate code
-    res = emulate(code, textStart, heapStart, tls, codeMem, stackMem, heapMem, entry, steps)
+    res = emulate(nsProf, entry, steps)
 
     # Display resulting data
-    dumpData(res, heapStart, tls)
+    dumpData(res, nsProf.heapStart, nsProf.tls)
     
 if __name__ == "__main__":
     main(sys.argv[1:])
